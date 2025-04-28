@@ -3,7 +3,9 @@ use std::{
 	fmt,
 };
 
-use pindakaas_cadical::{ccadical_copy, ccadical_enable_proof, ccadical_phase, ccadical_unphase};
+use pindakaas_cadical::{
+	ccadical_conclude_next, ccadical_copy, ccadical_enable_proof, ccadical_phase, ccadical_unphase,
+};
 use pindakaas_derive::IpasirSolver;
 
 use crate::{solver::FFIPointer, Lit, VarFactory};
@@ -71,6 +73,12 @@ impl Cadical {
 		// all possible name paths.
 		unsafe {
 			ccadical_enable_proof(self.ptr, name.as_ptr());
+		}
+	}
+
+	pub fn conclude_next(&mut self, next: bool) {
+		unsafe {
+			ccadical_conclude_next(self.ptr, next);
 		}
 	}
 }

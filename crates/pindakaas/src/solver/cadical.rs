@@ -4,7 +4,8 @@ use std::{
 };
 
 use pindakaas_cadical::{
-	ccadical_conclude_next, ccadical_copy, ccadical_enable_proof, ccadical_phase, ccadical_unphase,
+	ccadical_add_proof_hint, ccadical_conclude_next, ccadical_copy, ccadical_enable_proof,
+	ccadical_phase, ccadical_unphase,
 };
 use pindakaas_derive::IpasirSolver;
 
@@ -79,6 +80,13 @@ impl Cadical {
 	pub fn conclude_next(&mut self, next: bool) {
 		unsafe {
 			ccadical_conclude_next(self.ptr, next);
+		}
+	}
+
+	pub fn add_proof_hint(&mut self, hint: &str) {
+		let hint = CString::new(hint).unwrap();
+		unsafe {
+			ccadical_add_proof_hint(self.ptr, hint.as_ptr());
 		}
 	}
 }

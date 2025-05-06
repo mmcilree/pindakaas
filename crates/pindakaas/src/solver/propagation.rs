@@ -184,7 +184,8 @@ pub trait Propagator {
 	/// Ask the external propagator for the reason clause of a previous external
 	/// propagation step (done by [`Propagator::propagate`]). The clause must
 	/// contain the propagated literal.
-	fn add_reason_clause(&mut self, propagated_lit: Lit) -> Vec<Lit> {
+	fn add_reason_clause(&mut self, slv: &mut dyn ProofActions, propagated_lit: Lit) -> Vec<Lit> {
+		let _ = slv;
 		let _ = propagated_lit;
 		Vec::new()
 	}
@@ -212,7 +213,7 @@ pub enum SearchDecision {
 
 /// A trait containing the solver methods that are exposed to the propagator
 /// during solving.
-pub trait SolvingActions {
+pub trait SolvingActions: ProofActions {
 	/// Add a new observed variable to the solver.
 	fn new_var(&mut self) -> Var;
 	/// Add a new observed literal to the solver.
@@ -237,6 +238,10 @@ pub trait WithPropagator<P: Propagator> {
 	///
 	/// Calling this method automatically resets the observed variable set.
 	fn with_propagator(self, prop: P) -> Self::PropSlv;
+}
+
+pub trait ProofActions {
+	fn add_proof_hint(&mut self, hint: &str);
 }
 
 pub(crate) unsafe extern "C" fn ipasir_add_external_clause_lit_cb<
@@ -272,7 +277,7 @@ pub(crate) unsafe extern "C" fn ipasir_add_reason_clause_lit_cb<
 	debug_assert!(prop.explaining.is_none() || prop.explaining == Some(lit));
 	// TODO: Can this be prop.explaining.is_none()?
 	if prop.explaining != Some(lit) {
-		prop.rqueue = prop.prop.add_reason_clause(lit).into();
+		prop.rqueue = prop.prop.add_reason_clause(&mut prop.slv, lit).into();
 		prop.explaining = Some(lit);
 	}
 	if let Some(l) = prop.rqueue.pop_front() {

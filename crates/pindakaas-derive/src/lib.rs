@@ -305,6 +305,14 @@ pub fn ipasir_solver_derive(input: TokenStream) -> TokenStream {
 					unsafe { #krate::ipasir_force_backtrack( #ptr, new_level ) }
 				}
 			}
+
+			#[cfg(feature = "external-propagation")]
+			impl crate::solver::propagation::ProofActions for #ident {
+				fn add_proof_hint(&mut self, hint: &str) {
+					let hint = CString::new(hint).unwrap();
+					unsafe { #krate::ccadical_add_proof_hint( #ptr, hint.as_ptr()) }
+				}
+			}
 		}
 	} else {
 		quote!()

@@ -28,4 +28,5 @@ extern "C" {
 	pub fn ccadical_unphase(slv: *mut c_void, lit: i32);
 	pub fn ccadical_enable_proof(slv: *mut c_void, name: *const c_char);
 	pub fn ccadical_conclude_next(slv: *mut c_void, next: bool);
+	pub fn ccadical_add_proof_hint(slv: *mut c_void, next: *const c_char);
 }

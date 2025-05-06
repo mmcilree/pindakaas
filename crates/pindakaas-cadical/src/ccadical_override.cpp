@@ -89,4 +89,9 @@ extern "C"
   {
     ((Wrapper *)slv)->solver->conclude_next(next);
   }
+
+  void ccadical_add_proof_hint(CCaDiCaL *slv, const char *hint)
+  {
+    ((Wrapper *)slv)->solver->add_proof_hint(hint);
+  }
 }

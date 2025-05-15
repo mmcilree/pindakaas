@@ -28,7 +28,7 @@ use std::{
 	io::{self, BufRead, BufReader, Write},
 	iter::{repeat_n, FusedIterator},
 	num::NonZeroI32,
-	ops::{BitAnd, BitOr, BitXor, Bound, Not, RangeBounds, RangeInclusive},
+	ops::{Add, BitAnd, BitOr, BitXor, Bound, Mul, Not, RangeBounds, RangeInclusive},
 	path::Path,
 	slice,
 };
@@ -36,7 +36,10 @@ use std::{
 use itertools::{traits::HomogeneousTuple, Itertools};
 
 pub use crate::helpers::AsDynClauseDatabase;
-use crate::{helpers::subscript_number, propositional_logic::Formula, solver::VarFactory};
+use crate::{
+	bool_linear::BoolLinExp, helpers::subscript_number, propositional_logic::Formula,
+	solver::VarFactory,
+};
 
 /// A helper type used to represent a Boolean value that can be either a literal
 /// for a Boolean decision variable, or a constant Boolean value.
@@ -328,7 +331,6 @@ fn parse_dimacs_file<const WEIGHTED: bool>(path: &Path) -> Result<Dimacs, io::Er
 
 	let mut cl: Vec<Lit> = Vec::new();
 	let mut top: Option<Coeff> = None;
-	let weight: Option<Coeff> = None;
 
 	for line in BufReader::new(file).lines() {
 		match line {
@@ -351,8 +353,7 @@ fn parse_dimacs_file<const WEIGHTED: bool>(path: &Path) -> Result<Dimacs, io::Er
 
 					if let Ok(lit) = seg.parse::<i32>() {
 						if lit == 0 {
-							wcnf.add_weighted_clause(cl.drain(..), weight)
-								.expect("CNF::add_clause does not return Unsatisfiable");
+							wcnf.add_clause(cl.drain(..)).unwrap();
 						} else {
 							cl.push(Lit(NonZeroI32::new(lit).unwrap()));
 						}
@@ -671,6 +672,22 @@ impl<'a> Iterator for CnfIterator<'a> {
 	}
 }
 
+impl Add<Lit> for Coeff {
+	type Output = BoolLinExp;
+
+	fn add(self, rhs: Lit) -> Self::Output {
+		rhs + self
+	}
+}
+
+impl Mul<Lit> for Coeff {
+	type Output = BoolLinExp;
+
+	fn mul(self, rhs: Lit) -> Self::Output {
+		rhs * self
+	}
+}
+
 impl<DB: ClauseDatabase + ?Sized> ClauseDatabaseTools for DB {}
 
 impl<F: Fn(Lit) -> bool> Valuation for F {
@@ -698,6 +715,22 @@ impl Lit {
 	/// Returns the underlying variable of the literal, whether negated or not.
 	pub fn var(&self) -> Var {
 		Var(self.0.abs())
+	}
+}
+
+impl Add for Lit {
+	type Output = BoolLinExp;
+
+	fn add(self, rhs: Self) -> Self::Output {
+		BoolLinExp::from_terms(&[(self, 1), (rhs, 1)])
+	}
+}
+
+impl Add<Coeff> for Lit {
+	type Output = BoolLinExp;
+
+	fn add(self, rhs: Coeff) -> Self::Output {
+		BoolLinExp::from_terms(&[(self, 1)]) + rhs
 	}
 }
 
@@ -799,6 +832,14 @@ impl BitXor<Lit> for Lit {
 impl From<Var> for Lit {
 	fn from(value: Var) -> Self {
 		Lit(value.0)
+	}
+}
+
+impl Mul<Coeff> for Lit {
+	type Output = BoolLinExp;
+
+	fn mul(self, rhs: Coeff) -> Self::Output {
+		BoolLinExp::from_terms(&[(self, rhs)])
 	}
 }
 
@@ -1021,7 +1062,7 @@ impl RangeBounds<Var> for VarRange {
 
 impl Wcnf {
 	/// Add a weighted clause to the formula.
-	pub fn add_weighted_clause<I>(&mut self, clause: I, weight: Option<Coeff>) -> Result
+	pub fn add_weighted_clause<I>(&mut self, clause: I, weight: Coeff) -> Result
 	where
 		I: IntoIterator,
 		I::Item: Into<BoolVal>,
@@ -1029,7 +1070,7 @@ impl Wcnf {
 		let clauses = self.cnf.num_clauses();
 		self.cnf.add_clause(clause)?;
 		if self.cnf.num_clauses() > clauses {
-			self.weights.push(weight);
+			self.weights.push(Some(weight));
 		}
 		Ok(())
 	}
@@ -1078,7 +1119,12 @@ impl Wcnf {
 
 impl ClauseDatabase for Wcnf {
 	fn add_clause_from_slice(&mut self, clause: &[Lit]) -> Result {
-		self.add_weighted_clause(clause.iter().copied(), None)
+		let clauses = self.cnf.num_clauses();
+		self.cnf.add_clause_from_slice(clause)?;
+		if self.cnf.num_clauses() > clauses {
+			self.weights.push(None);
+		}
+		Ok(())
 	}
 
 	fn new_var_range(&mut self, len: usize) -> VarRange {
@@ -1098,7 +1144,7 @@ impl Display for Wcnf {
 			let weight = weight.unwrap_or(top);
 			write!(f, "{weight} ")?;
 			for lit in cl {
-				write!(f, "{lit} ")?;
+				write!(f, "{} ", lit.0)?;
 			}
 			writeln!(f, "0")?;
 			start += size;

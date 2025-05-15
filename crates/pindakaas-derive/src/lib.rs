@@ -348,6 +348,10 @@ pub fn ipasir_solver_derive(input: TokenStream) -> TokenStream {
 			}
 		}
 
+		// Safety: No one besides us has the raw solver pointer, so we can safely
+		// transfer the solver to another thread.
+		unsafe impl Send for #ident {}
+
 		impl crate::ClauseDatabase for #ident {
 			fn add_clause_from_slice(&mut self, clause: &[crate::Lit]) -> crate::Result{
 				let mut empty = true;
@@ -405,6 +409,11 @@ pub fn ipasir_solver_derive(input: TokenStream) -> TokenStream {
 		}
 
 		impl #ident {
+			#[doc(hidden)] // TODO: Unsure whether this is a good idea.
+			pub fn emitted_vars(&self) -> crate::VarRange {
+				#vars .emitted_vars()
+			}
+
 			fn solver_solution_obj(&self) -> #sol_ident {
 				#sol_ident { slv: self }
 			}
